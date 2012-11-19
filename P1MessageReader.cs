@@ -74,8 +74,10 @@ namespace netduino_p1_logging
                 {
                     sbMessage.Append(Convert.ToChar(buff[i]));
                     if (buff[i] == 33)
-                    {                        
-                        OnMessageReceived(new MessageReceivedEventArgs() { RawMessage = sbMessage.ToString(), Data = ParseData(sbMessage) });
+                    {
+                        try {
+                            OnMessageReceived(new MessageReceivedEventArgs() { RawMessage = sbMessage.ToString(), Data = ParseData(sbMessage) });
+                        } catch (Exception) { }
                         sbMessage.Clear();
                     }
                 }
@@ -83,10 +85,11 @@ namespace netduino_p1_logging
         }
 
         P1Data ParseData(StringBuilder sb) {
-            var values = GetValuesFromMessage(sbMessage.Replace("(m3)\r\n", "").Replace("\r\n", "#").Replace("*kWh", "").Replace("*kW", "").ToString());
-
             var data = new P1Data();
             data.LogMoment = DateTime.Now;
+            
+            var values = GetValuesFromMessage(sbMessage.Replace("(m3)\r\n", "").Replace("\r\n", "#").Replace("*kWh", "").Replace("*kW", "").ToString());            
+            
             data.E1 = Double.Parse(values["1-0:1.8.1"].ToString());
             data.E2 = Double.Parse(values["1-0:1.8.2"].ToString());
             data.E1Retour = Double.Parse(values["1-0:2.8.1"].ToString());
