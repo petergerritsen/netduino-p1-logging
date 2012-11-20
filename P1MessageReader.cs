@@ -88,17 +88,17 @@ namespace netduino_p1_logging
             var data = new P1Data();
             data.LogMoment = DateTime.Now;
             
-            var values = GetValuesFromMessage(sbMessage.Replace("(m3)\r\n", "").Replace("\r\n", "#").Replace("*kWh", "").Replace("*kW", "").ToString());            
+            var values = GetValuesFromMessage(sbMessage.Replace("(m3)\r\n", "").Replace("\r\n", "#").Replace("*kWh", "").Replace("*kW", "").Replace(")(", "@").ToString());            
             
-            data.E1 = Double.Parse(values["1-0:1.8.1"].ToString());
-            data.E2 = Double.Parse(values["1-0:1.8.2"].ToString());
-            data.E1Retour = Double.Parse(values["1-0:2.8.1"].ToString());
-            data.E2Retour = Double.Parse(values["1-0:2.8.2"].ToString());
-            data.CurrentUsage = Double.Parse(values["1-0:1.7.0"].ToString());
-            data.CurrentRetour = Double.Parse(values["1-0:2.7.0"].ToString());
-            data.CurrentTariff = Double.Parse(values["0-0:96.14.0"].ToString());
-            data.LastGasTransmit = data.LogMoment;
-            data.Gas = Double.Parse(values["0-1:24.3.0"].ToString());
+            data.E1 = Double.Parse(((string[])values["1-0:1.8.1"])[0]);
+            data.E2 = Double.Parse(((string[])values["1-0:1.8.2"])[0]);
+            data.E1Retour = Double.Parse(((string[])values["1-0:2.8.1"])[0]);
+            data.E2Retour = Double.Parse(((string[])values["1-0:2.8.2"])[0]);
+            data.CurrentUsage = Double.Parse(((string[])values["1-0:1.7.0"])[0]);
+            data.CurrentRetour = Double.Parse(((string[])values["1-0:2.7.0"])[0]);
+            data.CurrentTariff = Double.Parse(((string[])values["0-0:96.14.0"])[0]);
+            data.LastGasTransmit = ((string[])values["0-1:24.3.0"])[0];
+            data.Gas = Double.Parse(((string[])values["0-1:24.3.0"])[5]);
 
             return data;
         }
@@ -109,13 +109,12 @@ namespace netduino_p1_logging
             var lines = message.Split('#');
             foreach (var line in lines) {
                 if (line.IndexOf("(") > 0) {
-                    var first = line.IndexOf("(");
-                    var last = line.LastIndexOf("(");
+                    var first = line.IndexOf("(");                   
                     string id = line.Substring(0, first);
-                    string value = line.Substring(last + 1, line.Length - last - 2);
+                    string[] linevalues = line.Substring(first + 1, line.Length - first - 2).Split('@');                   
                     
                     if (!values.Contains(id))
-                        values.Add(id, value);
+                        values.Add(id, linevalues);
                 }
             }
 
@@ -138,7 +137,7 @@ namespace netduino_p1_logging
         public System.Double CurrentUsage { get; set; }
         public System.Double CurrentRetour { get; set; }
         public System.Double CurrentTariff { get; set; }
-        public DateTime LastGasTransmit { get; set; }
+        public System.String LastGasTransmit { get; set; }
         public System.Double Gas { get; set; }
     }
 }

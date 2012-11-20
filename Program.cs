@@ -49,7 +49,7 @@ namespace netduino_p1_logging
                 content.AppendLine("\"CurrentTariff\": \"" + e.Data.CurrentTariff.ToString() + "\",");
                 content.AppendLine("\"CurrentUsage\": \"" + e.Data.CurrentUsage.ToString() + "\",");
                 content.AppendLine("\"CurrentRetour\": \"" + e.Data.CurrentRetour.ToString() + "\",");
-                content.AppendLine("\"GasMeasurementMoment\": \"" + e.Data.LastGasTransmit.ToString("yyyy-MM-ddTHH:mm:ss") + "\",");
+                content.AppendLine("\"GasMeasurementMoment\": \"" + e.Data.LastGasTransmit + "\",");
                 content.AppendLine("\"GasMeasurementValue\": \"" + e.Data.Gas.ToString() + "\"");
                 content.AppendLine("}");
                 var address = new IPEndPoint(IPAddress.Parse("10.0.0.8"), 50222);
