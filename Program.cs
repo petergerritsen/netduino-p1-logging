@@ -8,62 +8,143 @@ using SecretLabs.NETMF.Hardware;
 using SecretLabs.NETMF.Hardware.NetduinoPlus;
 using System.Text;
 using System.IO;
+using System.Collections;
 
-namespace netduino_p1_logging
-{
-    public class Program
-    {
-        public static void Main()
-        {
-            try
-            {
-                NTP.UpdateTimeFromNtpServer("pool.ntp.org", 1);                
+namespace netduino_p1_logging {
+    public class Program {
+        private static IPEndPoint loggingEndpoint;
+        private const string configFilename = @"\sd\NetduinoP1.config";
+        private static string loggingHostName = " netduinop1logging.apphb.com";
+        private static string apiKey = "bWFpbEBwZXRlcmdlcnJpdHNlbi5ubA";
+        private static int webserverPortnumber = 9080;
+
+        public static void Main() {
+            try {
+                var timeSet = false;
+                NTP.UpdateTimeFromNtpServer("pool.ntp.org", 1);
+
+                ReadConfiguration();
+
+                loggingEndpoint = HttpClient.GetIPEndPoint(loggingHostName);
 
                 P1MessageReader messageReader = new P1MessageReader();
-
                 messageReader.MessageReceived += new P1MessageReader.MessageReceivedDelegate(messageReader_MessageReceived);
                 messageReader.Start();
 
                 while (true) {
-                    Thread.Sleep(500);
+                    Thread.Sleep(250);
+
+                    // Resync time at 3 o'clock at night                  
+                    if (!timeSet && System.DateTime.Now.Hour == 3) {
+                        timeSet = NTP.UpdateTimeFromNtpServer("pool.ntp.org", 1);
+                    } else if (timeSet && System.DateTime.Now.Hour > 3) {
+                        timeSet = false;
+                    }
                 }
-            }
-            catch (Exception ex)
-            {
+            } catch (Exception ex) {
                 Debug.Print(ex.ToString());
             }
         }
 
-        static void messageReader_MessageReceived(object sender, P1MessageReader.MessageReceivedEventArgs e)
-        {
+        private static void ReadConfiguration() {
             try {
+                Hashtable values = new Hashtable();
+                using (StreamReader sr = new StreamReader(configFilename)) {
+                    while (true) {
+                        var line = sr.ReadLine();
+                        if (line == null) 
+                            break;
+                        
+                        var index = line.IndexOf("=");
+                        var key = line.Substring(0, index);
+                        var value = line.Substring(index + 1);
 
-                StringBuilder content = new StringBuilder(2048);
-                content.AppendLine("{");
-                content.AppendLine("\"ApiKey\": \"bWFpbEBwZXRlcmdlcnJpdHNlbi5ubA\",");
-                content.AppendLine("\"Timestamp\": \"" + e.Data.LogMoment.ToString("yyyy-MM-ddTHH:mm:ss") + "\",");
-                content.AppendLine("\"E1\": \"" + e.Data.E1.ToString() + "\",");
-                content.AppendLine("\"E2\": \"" + e.Data.E2.ToString() + "\",");
-                content.AppendLine("\"E1Retour\": \"" + e.Data.E1Retour.ToString() + "\",");
-                content.AppendLine("\"E2Retour\": \"" + e.Data.E2Retour.ToString() + "\",");
-                content.AppendLine("\"CurrentTariff\": \"" + e.Data.CurrentTariff.ToString() + "\",");
-                content.AppendLine("\"CurrentUsage\": \"" + e.Data.CurrentUsage.ToString() + "\",");
-                content.AppendLine("\"CurrentRetour\": \"" + e.Data.CurrentRetour.ToString() + "\",");
-                content.AppendLine("\"GasMeasurementMoment\": \"" + e.Data.LastGasTransmit + "\",");
-                content.AppendLine("\"GasMeasurementValue\": \"" + e.Data.Gas.ToString() + "\"");
-                content.AppendLine("}");
-                var address = new IPEndPoint(IPAddress.Parse("10.0.0.8"), 50222);
-
-                // produce request
-                using (Socket connection = HttpClient.Connect(address, 1000)) {
-                    if (connection != null)
-                        HttpClient.SendRequest(connection, "10.0.0.8:50222", "POST /api/logentries HTTP/1.1", content.ToString());
+                        values.Add(key, value);
+                    }
                 }
-            } catch (Exception) { }
 
-            Debug.Print("New message received " + System.DateTime.Now.ToString("dd-MM-yyyy HH:mm:ss"));
-            Debug.Print(e.RawMessage);
-            Debug.Print("==================================================================");            
+                if (values.Contains("loggingHostname"))
+                    loggingHostName = values["loggingHostname"] as string;
+                if (values.Contains("apiKey"))
+                    apiKey = values["apiKey"] as string;
+                if (values.Contains("webServerPort"))
+                    webserverPortnumber = int.Parse(values["webServerPort"] as string);
+            } catch (Exception ex) {
+                Debug.Print("ERROR in ReadConfiguration: " + ex.StackTrace);
+            }
+        }
+
+        static void messageReader_MessageReceived(object sender, P1MessageReader.MessageReceivedEventArgs e) {
+            new Thread(delegate {
+                try {
+                    StringBuilder content = new StringBuilder(512);
+                    content.AppendLine("{");
+                    content.AppendLine("\"ApiKey\": \"" + apiKey + "\",");
+                    content.AppendLine("\"Timestamp\": \"" + e.Data.LogMoment.ToString("yyyy-MM-ddTHH:mm:ss") + "\",");
+                    content.AppendLine("\"E1\": \"" + e.Data.E1.ToString() + "\",");
+                    content.AppendLine("\"E2\": \"" + e.Data.E2.ToString() + "\",");
+                    content.AppendLine("\"E1Retour\": \"" + e.Data.E1Retour.ToString() + "\",");
+                    content.AppendLine("\"E2Retour\": \"" + e.Data.E2Retour.ToString() + "\",");
+                    content.AppendLine("\"CurrentTariff\": \"" + e.Data.CurrentTariff.ToString() + "\",");
+                    content.AppendLine("\"CurrentUsage\": \"" + e.Data.CurrentUsage.ToString() + "\",");
+                    content.AppendLine("\"CurrentRetour\": \"" + e.Data.CurrentRetour.ToString() + "\",");
+                    content.AppendLine("\"GasMeasurementMoment\": \"" + e.Data.LastGasTransmit + "\",");
+                    content.AppendLine("\"GasMeasurementValue\": \"" + e.Data.Gas.ToString() + "\"");
+                    content.AppendLine("}");
+
+                    // produce request
+                    using (Socket connection = HttpClient.Connect(loggingEndpoint, 2000)) {
+                        if (connection != null)
+                            HttpClient.SendRequest(connection, loggingHostName, "POST /api/logentries HTTP/1.1", content.ToString());
+                        else
+                            Debug.Print("Unable to connect");
+                    }
+                } catch (Exception ex) {
+                    Debug.Print("ERROR in posting data: " + ex.StackTrace);
+                }
+            }).Start();
+
+            new Thread(delegate {
+                try {
+                    WriteToSdCard(e.Data);
+                } catch (Exception ex) {
+                    Debug.Print("ERROR in writing to SDCard: " + ex.StackTrace);
+                }
+            }).Start();
+        }
+
+        private static void WriteToSdCard(P1Data p1Data) {
+            string path = @"\SD\" + DateTime.Now.ToString("yyyyMM");
+            string logFile = path + @"\" + DateTime.Now.ToString("yyyyMMdd") + ".log";
+
+            if (!Directory.Exists(path)) {
+                Directory.CreateDirectory(path);
+            }
+
+            if (!File.Exists(logFile)) {
+                using (var sw = new StreamWriter(logFile, true)) {
+                    sw.WriteLine("Timestamp;E1;E2;E1Retour;E2Retour;CurrentTariff;CurrentUsage;CurrentRetour;GasMeasurementMoment;GasMeasurementValue");
+                }
+            }
+
+            using (var sw = new StreamWriter(logFile, true)) {
+                var logLine = new StringBuilder(512);
+                logLine.Append(p1Data.LogMoment.ToString("yyyy-MM-ddTHH:mm:ss") + ";");
+                logLine.Append(p1Data.E1.ToString() + ";");
+                logLine.Append(p1Data.E2.ToString() + ";");
+                logLine.Append(p1Data.E1Retour.ToString() + ";");
+                logLine.Append(p1Data.E2Retour.ToString() + ";");
+                logLine.Append(p1Data.CurrentTariff.ToString() + ";");
+                logLine.Append(p1Data.CurrentUsage.ToString() + ";");
+                logLine.Append(p1Data.CurrentRetour.ToString() + ";");
+                logLine.Append(p1Data.LastGasTransmit + ";");
+                logLine.Append(p1Data.Gas.ToString());
+
+                sw.WriteLine(logLine.ToString());
+            }
         }
     }
 }
+
+
+

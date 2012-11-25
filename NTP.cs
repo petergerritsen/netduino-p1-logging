@@ -75,6 +75,20 @@ namespace netduino_p1_logging
             var dateTime = new DateTime(1900, 1, 1);
             dateTime += timeSpan;
 
+            // Daylight saving
+            if (dateTime.Month > 3 && dateTime.Month < 10)
+                timeZoneOffset += 1;
+            
+            if (dateTime.Month == 3) {
+                if ((dateTime.Day - (int)dateTime.DayOfWeek) >= 25)
+                    timeZoneOffset += 1;                    
+            }
+
+            if (dateTime.Month == 10) {
+                if ((dateTime.Day - (int)dateTime.DayOfWeek) < 25)
+                    timeZoneOffset += 1;    
+            }            
+
             var offsetAmount = new TimeSpan(timeZoneOffset, 0, 0);
             var networkDateTime = (dateTime + offsetAmount);
 
