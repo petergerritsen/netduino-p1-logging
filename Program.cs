@@ -14,7 +14,7 @@ namespace netduino_p1_logging {
     public class Program {
         private static IPEndPoint loggingEndpoint;
         private const string configFilename = @"\sd\NetduinoP1.config";
-        private static string loggingHostName = " netduinop1logging.apphb.com";
+        private static string loggingHostName = "netduinop1logging.apphb.com";
         private static string apiKey = "bWFpbEBwZXRlcmdlcnJpdHNlbi5ubA";
         private static int webserverPortnumber = 9080;
 
