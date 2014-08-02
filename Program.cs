@@ -15,6 +15,7 @@ namespace netduino_p1_logging {
         private static IPEndPoint loggingEndpoint;
         private const string configFilename = @"\sd\NetduinoP1.config";
         private static string loggingHostName = "netduinop1logging.apphb.com";
+        private static int loggingPortNumber = 80;
         private static string apiKey = "bWFpbEBwZXRlcmdlcnJpdHNlbi5ubA";
         private static int webserverPortnumber = 9080;
 
@@ -25,7 +26,7 @@ namespace netduino_p1_logging {
 
                 ReadConfiguration();
 
-                loggingEndpoint = HttpClient.GetIPEndPoint(loggingHostName);
+                loggingEndpoint = HttpClient.GetIPEndPoint(loggingHostName, loggingPortNumber);
 
                 P1MessageReader messageReader = new P1MessageReader();
                 messageReader.MessageReceived += new P1MessageReader.MessageReceivedDelegate(messageReader_MessageReceived);
@@ -88,7 +89,10 @@ namespace netduino_p1_logging {
                     content.AppendLine("\"CurrentTariff\": \"" + e.Data.CurrentTariff.ToString() + "\",");
                     content.AppendLine("\"CurrentUsage\": \"" + e.Data.CurrentUsage.ToString() + "\",");
                     content.AppendLine("\"CurrentRetour\": \"" + e.Data.CurrentRetour.ToString() + "\",");
-                    content.AppendLine("\"GasMeasurementMoment\": \"" + e.Data.LastGasTransmit + "\",");
+                    var gasValue = "";
+                    if (e.Data.LastGasTransmit != null)
+                        gasValue = e.Data.LastGasTransmit;
+                    content.AppendLine("\"GasMeasurementMoment\": \"" + gasValue + "\",");
                     content.AppendLine("\"GasMeasurementValue\": \"" + e.Data.Gas.ToString() + "\"");
                     content.AppendLine("}");
 

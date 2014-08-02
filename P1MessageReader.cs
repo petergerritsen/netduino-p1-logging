@@ -97,9 +97,10 @@ namespace netduino_p1_logging
             data.CurrentUsage = Double.Parse(((string[])values["1-0:1.7.0"])[0]);
             data.CurrentRetour = Double.Parse(((string[])values["1-0:2.7.0"])[0]);
             data.CurrentTariff = Double.Parse(((string[])values["0-0:96.14.0"])[0]);
-            data.LastGasTransmit = ((string[])values["0-1:24.3.0"])[0];
-            data.Gas = Double.Parse(((string[])values["0-1:24.3.0"])[5]);
-
+            if (values.Contains("0-1:24.3.0")) {
+                data.LastGasTransmit = ((string[])values["0-1:24.3.0"])[0];
+                data.Gas = Double.Parse(((string[])values["0-1:24.3.0"])[5]);
+            }
             return data;
         }
 
