@@ -2,6 +2,7 @@ using System;
 using Microsoft.SPOT;
 using System.Net;
 using System.Net.Sockets;
+using System.Threading;
 
 namespace netduino_p1_logging
 {
@@ -9,17 +10,15 @@ namespace netduino_p1_logging
     {
         public static bool UpdateTimeFromNtpServer(string server, int timeZoneOffset)
         {
-            try
-            {
-                var currentTime = GetNtpTime(server, timeZoneOffset);
-                Microsoft.SPOT.Hardware.Utility.SetLocalTime(currentTime);
+            new Thread(delegate {
+                try {
+                    var currentTime = GetNtpTime(server, timeZoneOffset);
+                    Microsoft.SPOT.Hardware.Utility.SetLocalTime(currentTime);
+                } catch {
+                }
+            }).Start();
 
-                return true;
-            }
-            catch
-            {
-                return false;
-            }
+            return true;
         }
 
         /// <summary>
