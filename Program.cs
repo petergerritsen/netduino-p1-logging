@@ -14,7 +14,10 @@ namespace netduino_p1_logging {
     public class Program {
         private static IPEndPoint loggingEndpoint;
         private static InterruptPort s0Port;
+
         private const string configFilename = @"\sd\NetduinoP1.config";
+        private const string valueCacheFilename = @"\sd\ValueCache.txt";
+
         private static string loggingHostName = "netduinop1logging.apphb.com";
         private static int loggingPortNumber = 80;
         private static string apiKey = "bWFpbEBwZXRlcmdlcnJpdHNlbi5ubA";
@@ -28,19 +31,20 @@ namespace netduino_p1_logging {
                 NTP.UpdateTimeFromNtpServer("pool.ntp.org", 1);
 
                 ReadConfiguration();
+                ReadValueCache();
 
                 loggingEndpoint = HttpClient.GetIPEndPoint(loggingHostName, loggingPortNumber);
 
                 s0Port = new InterruptPort(Pins.GPIO_PIN_D12, false, Port.ResistorMode.Disabled, Port.InterruptMode.InterruptEdgeLow);
-                s0Port.OnInterrupt += new NativeEventHandler(s0PulseReceived);
+                s0Port.OnInterrupt += new NativeEventHandler(S0PulseReceived);
                 s0Port.EnableInterrupt();
 
-                P1MessageReader messageReader = new P1MessageReader();
+                var messageReader = new P1MessageReader();
                 messageReader.MessageReceived += new P1MessageReader.MessageReceivedDelegate(messageReader_MessageReceived);
                 messageReader.Start();
 
                 while (true) {
-                    Thread.Sleep(10000);
+                    Thread.Sleep(60000);
 
                     // Resync time and s0Counter at 3 o'clock at night                  
                     if (!timeSet && System.DateTime.Now.Hour == 3) {
@@ -49,28 +53,46 @@ namespace netduino_p1_logging {
                     } else if (timeSet && System.DateTime.Now.Hour > 3) {
                         timeSet = false;
                     }
+
+                    CacheValuesOnSd();
                 }
             } catch (Exception ex) {
                 Debug.Print(ex.ToString());
             }
         }
 
+        static void S0PulseReceived(uint data1, uint data2, DateTime time) {
+            s0Counter++;
+            s0Port.ClearInterrupt();
+        }
+
+        private static void CacheValuesOnSd() {
+            new Thread(delegate {
+                try {
+                    var values = new Hashtable();
+                    values.Add("s0Counter", s0Counter);
+
+                    WriteKeyValueFile(valueCacheFilename, values);
+                } catch (Exception ex) {
+                    Debug.Print("ERROR in caching values: " + ex.StackTrace);
+                }
+            }).Start();
+        }
+
+        private static void ReadValueCache() {
+            try {
+                var values = ReadKeyValueFile(valueCacheFilename);
+
+                if (values.Contains("s0Counter"))
+                    s0Counter = int.Parse(values["s0Counter"] as string);
+            } catch (Exception ex) {
+                Debug.Print("ERROR in ReadValueCache: " + ex.StackTrace);
+            }
+        }
+
         private static void ReadConfiguration() {
             try {
-                Hashtable values = new Hashtable();
-                using (StreamReader sr = new StreamReader(configFilename)) {
-                    while (true) {
-                        var line = sr.ReadLine();
-                        if (line == null) 
-                            break;
-                        
-                        var index = line.IndexOf("=");
-                        var key = line.Substring(0, index);
-                        var value = line.Substring(index + 1);
-
-                        values.Add(key, value);
-                    }
-                }
+                var values = ReadKeyValueFile(configFilename);
 
                 if (values.Contains("loggingHostname"))
                     loggingHostName = values["loggingHostname"] as string;
@@ -80,6 +102,33 @@ namespace netduino_p1_logging {
                     webserverPortnumber = int.Parse(values["webServerPort"] as string);
             } catch (Exception ex) {
                 Debug.Print("ERROR in ReadConfiguration: " + ex.StackTrace);
+            }
+        }
+
+        private static Hashtable ReadKeyValueFile(string keyValueFilename) {
+            var values = new Hashtable();
+            using (var sr = new StreamReader(keyValueFilename)) {
+                while (true) {
+                    var line = sr.ReadLine();
+                    if (line == null)
+                        break;
+
+                    var index = line.IndexOf("=");
+                    var key = line.Substring(0, index);
+                    var value = line.Substring(index + 1);
+
+                    values.Add(key, value);
+                }
+            }
+
+            return values;
+        }
+
+        private static void WriteKeyValueFile(string keyValueFilename, Hashtable values) {
+            using (var sw = new StreamWriter(keyValueFilename, false)) {
+                foreach (var key in values.Keys) {
+                    sw.WriteLine(key + "=" + values[key]);    
+                }
             }
         }
 
@@ -125,12 +174,7 @@ namespace netduino_p1_logging {
                 }
             }).Start();
         }
-
-        static void s0PulseReceived(uint data1, uint data2, DateTime time) {
-            s0Counter++;
-            s0Port.ClearInterrupt();
-        }
-
+        
         private static void WriteToSdCard(P1Data p1Data) {
             string path = @"\SD\" + DateTime.Now.ToString("yyyyMM");
             string logFile = path + @"\" + DateTime.Now.ToString("yyyyMMdd") + ".log";
