@@ -107,18 +107,23 @@ namespace netduino_p1_logging {
 
         private static Hashtable ReadKeyValueFile(string keyValueFilename) {
             var values = new Hashtable();
-            using (var sr = new StreamReader(keyValueFilename)) {
-                while (true) {
-                    var line = sr.ReadLine();
-                    if (line == null)
-                        break;
+            try {
+                using (var sr = new StreamReader(keyValueFilename)) {
+                    while (true) {
+                        var line = sr.ReadLine();
+                        if (line == null)
+                            break;
 
-                    var index = line.IndexOf("=");
-                    var key = line.Substring(0, index);
-                    var value = line.Substring(index + 1);
+                        var index = line.IndexOf("=");
+                        var key = line.Substring(0, index);
+                        var value = line.Substring(index + 1);
 
-                    values.Add(key, value);
+                        values.Add(key, value);
+                    }
                 }
+            }
+            catch (Exception) {
+                // Do nothing, don't care, program for fallback if empty hashtable received
             }
 
             return values;
