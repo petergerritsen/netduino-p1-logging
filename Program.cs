@@ -10,28 +10,32 @@ using System.Text;
 using System.IO;
 using System.Collections;
 
-namespace netduino_p1_logging {
-    public class Program {
+namespace netduino_p1_logging
+{
+    public class Program
+    {
         private static IPEndPoint loggingEndpoint;
         private static InterruptPort s0Port;
 
         private const string configFilename = @"\sd\NetduinoP1.config";
         private const string valueCacheFilename = @"\sd\ValueCache.txt";
 
-        private static string loggingHostName = "netduinop1logging.apphb.com";
+        private static string loggingHostName = "genergyloggingfunctions.azurewebsites.net";
         private static int loggingPortNumber = 80;
-        private static string apiKey = "bWFpbEBwZXRlcmdlcnJpdHNlbi5ubA";
+        private static string loggingPath = "POST /api/LogEntry?code=code HTTP/1.1";
+        private static string apiKey = "apikey";
         private static int webserverPortnumber = 9080;
-
         private static int s0Counter = 0;
 
-        public static void Main() {
-            try {
+        public static void Main()
+        {
+            try
+            {
                 var timeSet = false;
                 NTP.UpdateTimeFromNtpServer("pool.ntp.org", 1);
 
                 ReadConfiguration();
-                ReadValueCache();
+                ReadValueCache(System.DateTime.Today.ToString("ddMMyyyy"));
 
                 loggingEndpoint = HttpClient.GetIPEndPoint(loggingHostName, loggingPortNumber);
 
@@ -43,73 +47,104 @@ namespace netduino_p1_logging {
                 messageReader.MessageReceived += new P1MessageReader.MessageReceivedDelegate(messageReader_MessageReceived);
                 messageReader.Start();
 
-                while (true) {
+                while (true)
+                {
                     Thread.Sleep(60000);
-
+                                        
                     // Resync time and s0Counter at 3 o'clock at night                  
-                    if (!timeSet && System.DateTime.Now.Hour == 3) {
+                    if (!timeSet && System.DateTime.Now.Hour == 3)
+                    {
                         timeSet = NTP.UpdateTimeFromNtpServer("pool.ntp.org", 1);
                         s0Counter = 0;
-                    } else if (timeSet && System.DateTime.Now.Hour > 3) {
+                    }
+                    else if (timeSet && System.DateTime.Now.Hour > 3)
+                    {
                         timeSet = false;
                     }
 
-                    CacheValuesOnSd();
+                    CacheValuesOnSd(System.DateTime.Today.ToString("ddMMyyyy"));
                 }
-            } catch (Exception ex) {
+            }
+            catch (Exception ex)
+            {
                 Debug.Print(ex.ToString());
             }
         }
 
-        static void S0PulseReceived(uint data1, uint data2, DateTime time) {
+        static void S0PulseReceived(uint data1, uint data2, DateTime time)
+        {
             s0Counter++;
             s0Port.ClearInterrupt();
         }
 
-        private static void CacheValuesOnSd() {
-            new Thread(delegate {
-                try {
+        private static void CacheValuesOnSd(string logdate)
+        {
+            new Thread(delegate
+            {
+                try
+                {
                     var values = new Hashtable();
+                    values.Add("logdate", logdate);
                     values.Add("s0Counter", s0Counter);
 
                     WriteKeyValueFile(valueCacheFilename, values);
-                } catch (Exception ex) {
+                }
+                catch (Exception ex)
+                {
                     Debug.Print("ERROR in caching values: " + ex.StackTrace);
                 }
             }).Start();
         }
 
-        private static void ReadValueCache() {
-            try {
+        private static void ReadValueCache(string logdate)
+        {
+            try
+            {
                 var values = ReadKeyValueFile(valueCacheFilename);
-
+                if (!values.Contains("logdate") || values["logdate"] as string != logdate)
+                    return;
                 if (values.Contains("s0Counter"))
                     s0Counter = int.Parse(values["s0Counter"] as string);
-            } catch (Exception ex) {
+            }
+            catch (Exception ex)
+            {
                 Debug.Print("ERROR in ReadValueCache: " + ex.StackTrace);
             }
         }
 
-        private static void ReadConfiguration() {
-            try {
+        private static void ReadConfiguration()
+        {
+            try
+            {
                 var values = ReadKeyValueFile(configFilename);
 
                 if (values.Contains("loggingHostname"))
                     loggingHostName = values["loggingHostname"] as string;
+                if (values.Contains("loggingPortNumber"))
+                    loggingPortNumber = int.Parse(values["loggingPortNumber"] as string);
                 if (values.Contains("apiKey"))
                     apiKey = values["apiKey"] as string;
+                if (values.Contains("loggingPath"))
+                    loggingPath = values["loggingPath"] as string;
                 if (values.Contains("webServerPort"))
                     webserverPortnumber = int.Parse(values["webServerPort"] as string);
-            } catch (Exception ex) {
+
+            }
+            catch (Exception ex)
+            {
                 Debug.Print("ERROR in ReadConfiguration: " + ex.StackTrace);
             }
         }
 
-        private static Hashtable ReadKeyValueFile(string keyValueFilename) {
+        private static Hashtable ReadKeyValueFile(string keyValueFilename)
+        {
             var values = new Hashtable();
-            try {
-                using (var sr = new StreamReader(keyValueFilename)) {
-                    while (true) {
+            try
+            {
+                using (var sr = new StreamReader(keyValueFilename))
+                {
+                    while (true)
+                    {
                         var line = sr.ReadLine();
                         if (line == null)
                             break;
@@ -122,24 +157,31 @@ namespace netduino_p1_logging {
                     }
                 }
             }
-            catch (Exception) {
+            catch (Exception)
+            {
                 // Do nothing, don't care, program for fallback if empty hashtable received
             }
 
             return values;
         }
 
-        private static void WriteKeyValueFile(string keyValueFilename, Hashtable values) {
-            using (var sw = new StreamWriter(keyValueFilename, false)) {
-                foreach (var key in values.Keys) {
-                    sw.WriteLine(key + "=" + values[key]);    
+        private static void WriteKeyValueFile(string keyValueFilename, Hashtable values)
+        {
+            using (var sw = new StreamWriter(keyValueFilename, false))
+            {
+                foreach (var key in values.Keys)
+                {
+                    sw.WriteLine(key + "=" + values[key]);
                 }
             }
         }
 
-        static void messageReader_MessageReceived(object sender, P1MessageReader.MessageReceivedEventArgs e) {
-            new Thread(delegate {
-                try {
+        static void messageReader_MessageReceived(object sender, P1MessageReader.MessageReceivedEventArgs e)
+        {
+            new Thread(delegate
+            {
+                try
+                {
                     StringBuilder content = new StringBuilder(512);
                     content.AppendLine("{");
                     content.AppendLine("\"ApiKey\": \"" + apiKey + "\",");
@@ -160,41 +202,66 @@ namespace netduino_p1_logging {
                     content.AppendLine("}");
 
                     // produce request
-                    using (Socket connection = HttpClient.Connect(loggingEndpoint, 2000)) {
-                        if (connection != null)
-                            HttpClient.SendRequest(connection, loggingHostName, "POST /api/logentries HTTP/1.1", content.ToString());
-                        else
-                            Debug.Print("Unable to connect");
-                    }
-                } catch (Exception ex) {
+                    new Thread(delegate()
+                           {
+                               try
+                               {
+                                   using (Socket connection = HttpClient.Connect(loggingEndpoint, 2000))
+                                   {
+                                       if (connection != null)
+                                       {
+                                           HttpClient.SendRequest(connection, loggingHostName, loggingPath, content.ToString());
+                                       }
+                                       else
+                                       {
+                                           Debug.Print("Unable to connect");
+                                       }
+                                   }
+                               }
+                               catch (Exception ex) {
+                                   Debug.Print("Error in sending data: " + ex.StackTrace);
+                               }
+                           }).Start();
+                }
+                catch (Exception ex)
+                {
                     Debug.Print("ERROR in posting data: " + ex.StackTrace);
                 }
             }).Start();
 
-            new Thread(delegate {
-                try {
+            new Thread(delegate
+            {
+                try
+                {
                     WriteToSdCard(e.Data);
-                } catch (Exception ex) {
+                }
+                catch (Exception ex)
+                {
                     Debug.Print("ERROR in writing to SDCard: " + ex.StackTrace);
                 }
             }).Start();
         }
-        
-        private static void WriteToSdCard(P1Data p1Data) {
+
+        private static void WriteToSdCard(P1Data p1Data)
+        {
             string path = @"\SD\" + DateTime.Now.ToString("yyyyMM");
             string logFile = path + @"\" + DateTime.Now.ToString("yyyyMMdd") + ".log";
 
-            if (!Directory.Exists(path)) {
+            if (!Directory.Exists(path))
+            {
                 Directory.CreateDirectory(path);
             }
 
-            if (!File.Exists(logFile)) {
-                using (var sw = new StreamWriter(logFile, true)) {
+            if (!File.Exists(logFile))
+            {
+                using (var sw = new StreamWriter(logFile, true))
+                {
                     sw.WriteLine("Timestamp;E1;E2;E1Retour;E2Retour;CurrentTariff;CurrentUsage;CurrentRetour;GasMeasurementMoment;GasMeasurementValue;PvProductionCounter");
                 }
             }
 
-            using (var sw = new StreamWriter(logFile, true)) {
+            using (var sw = new StreamWriter(logFile, true))
+            {
                 var logLine = new StringBuilder(512);
                 logLine.Append(p1Data.LogMoment.ToString("yyyy-MM-ddTHH:mm:ss") + ";");
                 logLine.Append(p1Data.E1.ToString() + ";");
